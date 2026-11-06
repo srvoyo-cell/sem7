@@ -1,0 +1,4 @@
+interface:
+  display_name: "Отчёты в Typst"
+  short_description: "Учебные отчёты в Typst по личным пресетам"
+  default_prompt: "Используй $typst-report-dev для подготовки учебного отчёта по моим пресетам Typst."

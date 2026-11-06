@@ -1,0 +1,5 @@
+dataset/*
+.venv
+.ruff_cache
+__marimo__
+tmp
