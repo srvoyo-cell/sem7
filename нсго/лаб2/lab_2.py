@@ -3,7 +3,6 @@ import marimo
 __generated_with = "0.25.2"
 app = marimo.App(width="medium")
 
-
 with app.setup:
     from collections.abc import Callable, Iterable
     from io import BytesIO
@@ -41,11 +40,13 @@ def _():
     При равномерном отборе оценка несмещённая, а при увеличении пакета её
     дисперсия уменьшается. В опыте с функцией двух переменных берём точный градиент.
     """)
+    return
 
 
 @app.cell
 def _():
     seed: int = 42
+    device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cpu_threads: int = min(4, torch.get_num_threads())
     torch.set_num_threads(cpu_threads)
     steps_2d: int = 300
@@ -53,8 +54,8 @@ def _():
     rates_2d: dict[str, float] = {
         "SGD": 0.001,
         "Momentum": 0.001,
-        "Adam": 0.01,
-        "AdamW": 0.01,
+        "Adam": 0.001,
+        "AdamW": 0.001,
     }
     rates_cnn: dict[str, float] = {
         "SGD": 0.05,
@@ -62,7 +63,7 @@ def _():
         "Adam": 0.001,
         "AdamW": 0.001,
     }
-    return cpu_threads, rates_2d, rates_cnn, seed, start_2d, steps_2d
+    return cpu_threads, device, rates_2d, rates_cnn, seed, start_2d, steps_2d
 
 
 @app.cell
@@ -209,11 +210,11 @@ def _():
             return CustomAdamW(params, rate, weight_decay=0.01)
         raise ValueError(f"Неизвестный оптимизатор {name}")
 
-    return CustomAdamW, CustomMomentum, CustomSGD, make_optimizer
+    return (make_optimizer,)
 
 
 @app.cell
-def _(make_optimizer):
+def _(device: torch.device, make_optimizer):
     def levy(x: Tensor, y: Tensor) -> Tensor:
         """Вычислить функцию Леви из §5.1, пункт 7, для координат x и y."""
         return (
@@ -236,18 +237,20 @@ def _(make_optimizer):
         Returns:
             Массив координат и массив значений целевой функции.
         """
-        point: Tensor = torch.tensor(start, dtype=torch.float64, requires_grad=True)
+        point: Tensor = torch.tensor(
+            start, dtype=torch.float64, device=device, requires_grad=True
+        )
         optimizer: Optimizer = make_optimizer(name, [point], rate)
         path: NDArray[np.float64] = np.empty((steps + 1, 2), dtype=np.float64)
         values: NDArray[np.float64] = np.empty(steps + 1, dtype=np.float64)
         for step in range(steps):
             optimizer.zero_grad()
             value: Tensor = levy(point[0], point[1])
-            path[step] = point.detach().numpy()
+            path[step] = point.detach().cpu().numpy()
             values[step] = float(value.item())
             value.backward()
             optimizer.step()
-        path[-1] = point.detach().numpy()
+        path[-1] = point.detach().cpu().numpy()
         values[-1] = float(levy(point[0], point[1]).item())
         return path, values
 
@@ -255,7 +258,12 @@ def _(make_optimizer):
 
 
 @app.cell
-def _(rates_2d, run_trajectory, start_2d, steps_2d):
+def _(
+    rates_2d: dict[str, float],
+    run_trajectory,
+    start_2d: tuple[float, float],
+    steps_2d: int,
+):
     trajectories: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]] = {
         name: run_trajectory(name, rate, start_2d, steps_2d)
         for name, rate in rates_2d.items()
@@ -264,7 +272,10 @@ def _(rates_2d, run_trajectory, start_2d, steps_2d):
 
 
 @app.cell
-def _(rates_2d, trajectories):
+def _(
+    rates_2d: dict[str, float],
+    trajectories: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]],
+):
     trajectory_rows: list[dict[str, str | float]] = []
     for _name, (_points, _values) in trajectories.items():
         _path_length: float = float(
@@ -283,34 +294,35 @@ def _(rates_2d, trajectories):
     mo.vstack(
         [mo.md("## Функция Леви"), mo.ui.table(trajectory_rows, pagination=False)]
     )
+    return
+
+
+@app.function
+def show_figure(figure: Figure, alt: str) -> mo.Html:
+    """Отобразить график в marimo из буфера в памяти.
+
+    Args:
+        figure: Фигура Matplotlib.
+        alt: Текстовое описание графика.
+
+    Returns:
+        Изображение графика для вывода в ячейке.
+    """
+    plt.show()
+    with BytesIO() as buffer:
+        canvas: FigureCanvasAgg = FigureCanvasAgg(figure)
+        canvas.print_png(buffer)
+        buffer.seek(0)
+        rendered: mo.Html = mo.image(buffer, alt=alt)
+    plt.close(figure)
+    return rendered
 
 
 @app.cell
-def _():
-    def show_figure(figure: Figure, alt: str) -> mo.Html:
-        """Отобразить график в marimo из буфера в памяти.
-
-        Args:
-            figure: Фигура Matplotlib.
-            alt: Текстовое описание графика.
-
-        Returns:
-            Изображение графика для вывода в ячейке.
-        """
-        plt.show()
-        with BytesIO() as buffer:
-            canvas: FigureCanvasAgg = FigureCanvasAgg(figure)
-            canvas.print_png(buffer)
-            buffer.seek(0)
-            rendered: mo.Html = mo.image(buffer, alt=alt)
-        plt.close(figure)
-        return rendered
-
-    return (show_figure,)
-
-
-@app.cell
-def _(levy, show_figure, trajectories):
+def _(
+    levy,
+    trajectories: dict[str, tuple[NDArray[np.float64], NDArray[np.float64]]],
+):
     trajectory_fig: Figure = plt.figure(figsize=(12, 7), layout="constrained")
     _global = trajectory_fig.add_subplot(2, 2, 1)
     _local = trajectory_fig.add_subplot(2, 2, 2)
@@ -343,6 +355,7 @@ def _(levy, show_figure, trajectories):
     show_figure(
         trajectory_fig, "Линии уровня функции Леви, траектории и значения функции"
     )
+    return
 
 
 @app.cell
@@ -369,6 +382,7 @@ def _():
     $\frac{\lambda}{2}\|\theta\|_2^2$. В AdamW затухание
     $\theta\gets(1-\eta\lambda)\theta$ применяется отдельно от моментов.
     """)
+    return
 
 
 @app.cell
@@ -457,7 +471,7 @@ def _():
 
 
 @app.cell
-def _(cpu_threads, seed):
+def _(cpu_threads: int, device: torch.device, seed: int):
     mo.md(f"""
     ## Обучение CNN на CIFAR-100
 
@@ -470,17 +484,18 @@ def _(cpu_threads, seed):
     Сравниваем все методы на одинаковых начальных весах и порядке объектов
     (seed {seed}), по 5 эпох с пакетом 128. Потери и точность на train усредняются
     по пакетам в ходе обучения, а на test измеряются с весами конца эпохи.
-    Вычисления выполняются на CPU
-    с числом потоков {cpu_threads}. Для запуска с локальной копией CIFAR-100
+    Устройство вычислений: **{device}**, число потоков CPU: {cpu_threads}.
+    Для запуска с локальной копией CIFAR-100
     можно задать переменную среды **CIFAR100_ROOT**. При первом запуске без
     локальной копии архив (~169 МБ) временно загружается и проверяется
     по контрольной сумме torchvision. [Описание CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html),
     [копия архива на Zenodo](https://zenodo.org/records/10089977).
     """)
+    return
 
 
 @app.cell
-def _(load_subsets, seed):
+def _(load_subsets, seed: int):
     train_data, val_data, test_data = load_subsets(
         getenv("CIFAR100_ROOT"), seed, 100, 20, 30
     )
@@ -488,7 +503,7 @@ def _(load_subsets, seed):
 
 
 @app.cell
-def _(make_optimizer):
+def _(device: torch.device, make_optimizer):
     def make_cnn(seed: int) -> nn.Sequential:
         """Создать CNN с фиксированной инициализацией для 100 классов."""
         with torch.random.fork_rng(devices=[]):
@@ -535,8 +550,8 @@ def _(make_optimizer):
             for batch in indices.split(batch_size):
                 if optimizer is not None:
                     optimizer.zero_grad()
-                logits: Tensor = model(images[batch])
-                targets: Tensor = labels[batch]
+                logits: Tensor = model(images[batch].to(device))
+                targets: Tensor = labels[batch].to(device)
                 loss: Tensor = criterion(logits, targets)
                 batch_loss: float = float(loss.item())
                 if not isfinite(batch_loss):
@@ -571,7 +586,7 @@ def _(make_optimizer):
         Returns:
             История потерь и точности для обеих выборок и время обучения.
         """
-        model: nn.Sequential = make_cnn(seed)
+        model: nn.Sequential = make_cnn(seed).to(device)
         optimizer: Optimizer = make_optimizer(name, model.parameters(), rate)
         rng: torch.Generator = torch.Generator().manual_seed(seed)
         evaluation_order: Tensor = torch.arange(len(holdout[1]))
@@ -604,7 +619,7 @@ def _(make_optimizer):
 
 
 @app.cell
-def _(fit, rates_cnn, seed, test_data, train_data):
+def _(fit, rates_cnn: dict[str, float], seed: int, test_data, train_data):
     cnn_results: dict[str, tuple[dict[str, list[float]], float]] = {
         name: fit(name, rate, 128, 5, seed, train_data, test_data)
         for name, rate in rates_cnn.items()
@@ -613,7 +628,7 @@ def _(fit, rates_cnn, seed, test_data, train_data):
 
 
 @app.cell
-def _(cnn_results, show_figure):
+def _(cnn_results: dict[str, tuple[dict[str, list[float]], float]]):
     learning_fig: Figure = plt.figure(figsize=(11, 7), layout="constrained")
     for _position, _key, _title, _ylabel in [
         (1, "train_loss", "Train: потери", "Кросс-энтропия"),
@@ -629,10 +644,14 @@ def _(cnn_results, show_figure):
         _ax.grid(alpha=0.25)
         _ax.legend()
     show_figure(learning_fig, "Потери и точность четырёх оптимизаторов по эпохам")
+    return
 
 
 @app.cell
-def _(cnn_results, rates_cnn):
+def _(
+    cnn_results: dict[str, tuple[dict[str, list[float]], float]],
+    rates_cnn: dict[str, float],
+):
     cnn_rows: list[dict[str, str | float]] = []
     for _name, (_history, _seconds) in cnn_results.items():
         _train_accuracy: float = _history["train_accuracy"][-1]
@@ -684,6 +703,7 @@ def _(cnn_results, rates_cnn):
     else:
         _conclusion = mo.md("Все прогоны прерваны из-за нечисловых значений потерь.")
     mo.vstack([mo.ui.table(cnn_rows, pagination=False), _conclusion])
+    return
 
 
 @app.cell
@@ -696,10 +716,11 @@ def _():
     пакетов, учитываем, что за одинаковое число эпох меньший пакет даёт
     больше обновлений весов.
     """)
+    return
 
 
 @app.cell
-def _(fit, seed, train_data, val_data):
+def _(fit, seed: int, train_data, val_data):
     batch_sizes: tuple[int, ...] = (16, 64, 256, 1024)
     learning_rates: tuple[float, ...] = (0.1, 0.01, 0.001, 0.0001)
     grid_results: dict[tuple[int, float], tuple[dict[str, list[float]], float]] = {
@@ -711,7 +732,9 @@ def _(fit, seed, train_data, val_data):
 
 
 @app.cell
-def _(grid_results):
+def _(
+    grid_results: dict[tuple[int, float], tuple[dict[str, list[float]], float]],
+):
     grid_rows: list[dict[str, int | str | float | None]] = []
     for (_size, _rate), (_history, _seconds) in grid_results.items():
         _loss: float = _history["holdout_loss"][-1]
@@ -737,10 +760,15 @@ def _(grid_results):
             }
         )
     mo.ui.table(grid_rows, pagination=False)
+    return
 
 
 @app.cell
-def _(batch_sizes, grid_results, learning_rates, show_figure):
+def _(
+    batch_sizes: tuple[int, ...],
+    grid_results: dict[tuple[int, float], tuple[dict[str, list[float]], float]],
+    learning_rates: tuple[float, ...],
+):
     _quality: NDArray[np.float64] = np.array(
         [
             [
@@ -778,10 +806,14 @@ def _(batch_sizes, grid_results, learning_rates, show_figure):
             bbox={"facecolor": "black", "alpha": 0.5, "edgecolor": "none"},
         )
     show_figure(grid_fig, "Тепловая карта точности SGD на валидационной выборке")
+    return
 
 
 @app.cell
-def _(batch_sizes, grid_results):
+def _(
+    batch_sizes: tuple[int, ...],
+    grid_results: dict[tuple[int, float], tuple[dict[str, list[float]], float]],
+):
     _usable: list[tuple[int, float]] = [
         (size, rate)
         for (size, rate), (history, _) in grid_results.items()
@@ -820,6 +852,7 @@ def _(batch_sizes, grid_results):
             "Во всех сочетаниях потери на validation не снизились на второй эпохе."
         )
     mo.md(_grid_note)
+    return
 
 
 if __name__ == "__main__":

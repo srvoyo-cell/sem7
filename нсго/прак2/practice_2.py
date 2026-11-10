@@ -43,6 +43,7 @@ def _(mo):
     В экспериментах сравниваем модели на одних и тех же данных и фиксируем
     случайное зерно.
     """)
+    return
 
 
 @app.cell
@@ -175,6 +176,7 @@ def _(build_mlp, fit, mo, nn, seed: int, torch):
         Многоклассовая классификация на логитах показана в аудиторной задаче 3.
         """
     )
+    return
 
 
 @app.cell
@@ -205,6 +207,7 @@ def _(mo, nn):
         Сложения и сравнения ReLU в число умножений не входят.
         """
     )
+    return
 
 
 @app.cell
@@ -252,6 +255,7 @@ def _(mo, nn, seed: int, torch):
         выход размерности **{tuple(_result.shape)}**.
         """
     )
+    return
 
 
 @app.cell
@@ -319,6 +323,7 @@ def _(DataLoader, TensorDataset, build_mlp, mo, nn, seed: int, torch):
         CrossEntropyLoss и NLLLoss после LogSoftmax **{_delta:.2e}**.
         """
     )
+    return
 
 
 @app.cell
@@ -348,6 +353,7 @@ def _(mo, nn, torch):
         **{"пройдена" if _verified else "выявила расхождение"}**.
         """
     )
+    return
 
 
 @app.cell
@@ -403,6 +409,7 @@ def _(DataLoader, Dataset, mo, seed: int, torch):
             ),
         ]
     )
+    return
 
 
 @app.cell
@@ -424,14 +431,14 @@ def _(seed: int, torch):
 
 @app.cell
 def _(
-    render_figure,
     build_mlp,
     fit,
     mo,
     nn,
-    oscillation_train,
-    oscillation_validation,
+    oscillation_train: "tuple[torch.Tensor, torch.Tensor]",
+    oscillation_validation: "tuple[torch.Tensor, torch.Tensor]",
     plt,
+    render_figure,
     seed: int,
     torch,
 ):
@@ -506,18 +513,19 @@ def _(
             mo.md(_conclusion),
         ]
     )
+    return
 
 
 @app.cell
 def _(
-    render_figure,
     build_mlp,
     fit,
     mo,
     nn,
-    oscillation_train,
-    oscillation_validation,
+    oscillation_train: "tuple[torch.Tensor, torch.Tensor]",
+    oscillation_validation: "tuple[torch.Tensor, torch.Tensor]",
     plt,
+    render_figure,
     seed: int,
     torch,
 ):
@@ -596,6 +604,7 @@ def _(
             render_figure(_figure, "Сходимость Adam с L2 и AdamW"),
         ]
     )
+    return
 
 
 @app.cell
@@ -627,6 +636,7 @@ def _(mo):
     весами кодировщика. Решение $E=V_k$, $D=V_k^\top$ достижимо и при
     этом ограничении.
     """)
+    return
 
 
 @app.cell
@@ -768,8 +778,8 @@ def _(
     nn,
     np,
     pca_dimension: int,
-    pca_test_images,
-    pca_train_images,
+    pca_test_images: "NDArray[np.float32]",
+    pca_train_images: "NDArray[np.float32]",
     seed: int,
     threadpool_limits,
     torch,
@@ -780,7 +790,7 @@ def _(
     _encoder: nn.Linear
     pca_autoencoder_history: list[float]
     _encoder, pca_autoencoder_history = fit_linear_autoencoder(
-        _train_tensor - _train_mean, pca_dimension, seed, epochs=20
+        _train_tensor - _train_mean, pca_dimension, seed, epochs=200
     )
     pca_encoder_weights: NDArray[np.float32] = _encoder.weight.detach().numpy()
     with torch.no_grad():
@@ -830,9 +840,9 @@ def _(
     pca_autoencoder_mse: float,
     pca_baseline_mse: float,
     pca_dimension: int,
-    pca_principal_angles,
-    pca_test_images,
-    pca_train_images,
+    pca_principal_angles: "NDArray[np.float32]",
+    pca_test_images: "NDArray[np.float32]",
+    pca_train_images: "NDArray[np.float32]",
 ):
     _angles: str = ", ".join(f"{angle:.2f}°" for angle in pca_principal_angles)
     mo.md(
@@ -853,19 +863,19 @@ def _(
         выбранный оптимизатор и перенос на отдельную тестовую выборку.
         """
     )
+    return
 
 
 @app.cell
 def _(
-    render_figure,
     Figure,
     NDArray,
-    mo,
     np,
-    pca_components,
+    pca_components: "NDArray[np.float32]",
     pca_dimension: int,
-    pca_encoder_weights,
+    pca_encoder_weights: "NDArray[np.float32]",
     plt,
+    render_figure,
 ):
     _normalized: NDArray[np.float32] = pca_encoder_weights / np.linalg.norm(
         pca_encoder_weights, axis=1, keepdims=True
@@ -888,23 +898,24 @@ def _(
             _axis.set_xticks([])
             _axis.set_yticks([])
             if _row == 0:
-                _axis.set_title(str(_column + 1))
+                _axis.set_title(str(_column))
     _axes[0, 0].set_ylabel("Кодировщик")
     _axes[1, 0].set_ylabel("PCA")
     _figure.suptitle("Нормированные строки весов и главные компоненты MNIST")
     render_figure(_figure, "Веса линейного энкодера и компоненты PCA для MNIST")
+    return
 
 
 @app.cell
 def _(
-    render_figure,
     build_mlp,
     fit,
     mo,
     nn,
-    oscillation_train,
-    oscillation_validation,
+    oscillation_train: "tuple[torch.Tensor, torch.Tensor]",
+    oscillation_validation: "tuple[torch.Tensor, torch.Tensor]",
     plt,
+    render_figure,
     seed: int,
     torch,
 ):
@@ -1010,6 +1021,7 @@ def _(
             render_figure(_figure, "Кривые обучения для ручного и встроенного Dropout"),
         ]
     )
+    return
 
 
 @app.cell
@@ -1018,8 +1030,8 @@ def _(
     fit,
     mo,
     nn,
-    oscillation_train,
-    oscillation_validation,
+    oscillation_train: "tuple[torch.Tensor, torch.Tensor]",
+    oscillation_validation: "tuple[torch.Tensor, torch.Tensor]",
     seed: int,
     torch,
 ):
@@ -1078,6 +1090,7 @@ def _(
             mo.ui.table(_results, selection=None),
         ]
     )
+    return
 
 
 @app.cell
@@ -1105,6 +1118,7 @@ def _(mo):
        дисперсией $2/(\mathrm{fan}_{in}+\mathrm{fan}_{out})$ для одинаковых
        ширин даёт вдвое меньшую дисперсию.
     """)
+    return
 
 
 @app.cell
