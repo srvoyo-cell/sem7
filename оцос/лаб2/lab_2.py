@@ -271,7 +271,7 @@ def _(cutoff, response, response_omega, sample_count, x, y):
     _fig, _axes = plt.subplots(3, 1, figsize=(10, 8), layout="constrained")
     _index: IntArray = np.arange(sample_count, dtype=np.int64)
     _axes[0].plot(_index, x, linewidth=0.5, label="x[n], БГШ")
-    _axes[1].plot(_index, y, linewidth=0.5, label="y[n], окрашенный шум")
+    _axes[1].plot(_index, y, linewidth=0.5, label="y[n], Шум после фильтра")
     _axis: Axes
     for _axis in _axes[:2]:
         _axis.set(xlabel="n, отсчёт", ylabel="Амплитуда, усл. ед.")
@@ -515,7 +515,7 @@ def _(omega_p, omega_w, power_db, psd_x_p, psd_x_w, psd_y_p, psd_y_w, theory_y):
         omega_p / np.pi, power_db(psd_y_p), alpha=0.6, label="Периодограмма y"
     )
     _axes[1].plot(omega_w / np.pi, power_db(psd_y_w), label="Уэлч y")
-    _axes[1].set_title("СПМ окрашенного шума")
+    _axes[1].set_title("СПМ шума после фильтра")
     _axes[2].plot(omega_w / np.pi, power_db(theory_y), label="Теория |H|²")
     _axes[2].plot(omega_w / np.pi, power_db(psd_y_w), label="Уэлч y")
     _axes[2].set_title("Сравнение с теоретической СПМ")
